@@ -1,5 +1,5 @@
 {
-  "name": "teachercon-app",
+  "name": "teacher-comments",
   "version": "1.0.0",
   "main": "server.js",
   "dependencies": {

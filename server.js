@@ -5,7 +5,7 @@ const path = require('path');
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// 这个接口负责转发请求到 DeepSeek
+// 这个接口负责转发请求到 DeepSeek，保护你的 API_KEY
 app.post('/api/chat', async (req, res) => {
     try {
         const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -23,5 +23,5 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
-// Vercel 环境下不需要 app.listen，直接导出
+// Vercel 不需要 app.listen，直接导出 app 即可
 module.exports = app;

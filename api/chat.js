@@ -1,5 +1,4 @@
 module.exports = async (req, res) => {
-    // 设置允许跨域（为了万无一失）
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

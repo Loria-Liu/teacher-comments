@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智评助手 - AI学生评语生成器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg: #faf8f5;
+    --card: #ffffff;
+    --border: #e8e2d9;
+    --text: #2d2a26;
+    --text-secondary: #7a7570;
+    --accent: #d35233;
+    --accent-hover: #b8432a;
+    --accent-light: #fef0ed;
+    --tag-bg: #f3efe9;
+    --tag-active: #d35233;
+    --tag-active-bg: #fef0ed;
+    --success: #2d8a56;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06);
+    --shadow-lg: 0 4px 16px rgba(0,0,0,0.08);
+    --radius: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ===== Header ===== */
+  .header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo {
+    width: 34px; height: 34px;
+    background: var(--accent);
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 17px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .header-title { font-size: 17px; font-weight: 700; white-space: nowrap; }
+  .header-sub { font-size: 13px; color: var(--text-secondary); font-weight: 400; white-space: nowrap; }
+
+  /* ===== Toolbar ===== */
+  .toolbar {
+    padding: 10px 28px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .btn {
+    padding: 7px 14px; border-radius: 6px; font-size: 13px; font-weight: 500;
+    cursor: pointer; border: 1px solid var(--border); background: var(--card);
+    color: var(--text); transition: all 0.15s; display: inline-flex;
+    align-items: center; gap: 5px; font-family: inherit; white-space: nowrap;
+  }
+  .btn:hover { background: var(--bg); }
+  .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-danger { color: var(--accent); border-color: var(--accent); }
+  .btn-danger:hover { background: var(--accent-light); }
+  .btn-export { color: var(--success); border-color: var(--success); }
+  .btn-export:hover { background: #edf7f0; }
+  .divider { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+  .spacer { margin-left: auto; }
+  .student-count { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+
+  /* ===== Table ===== */
+  .table-wrap { padding: 0 28px 32px; overflow-x: auto; }
+  table {
+    width: 100%; border-collapse: collapse; background: var(--card);
+    border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; min-width: 1100px;
+  }
+  thead th {
+    padding: 10px 12px; font-size: 12px; font-weight: 500;
+    color: var(--text-secondary); text-align: left; background: #f9f7f4;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid #f0ede8; transition: background 0.1s; }
+  tbody tr:hover { background: #fcfbf9; }
+  tbody tr.selected { background: var(--accent-light); }
+  tbody td { padding: 10px 12px; font-size: 13px; vertical-align: top; }
+  td.c-check, th.c-check { width: 36px; text-align: center; vertical-align: middle; }
+  td.c-idx { width: 36px; text-align: center; color: var(--text-secondary); font-size: 12px; vertical-align: middle; }
+
+  .cell-input {
+    width: 100%; padding: 4px 8px; border: 1px solid transparent; border-radius: 4px;
+    font-size: 13px; font-family: inherit; background: transparent; transition: all 0.15s;
+  }
+  .cell-input:hover { border-color: var(--border); }
+  .cell-input:focus { outline: none; border-color: var(--accent); background: white; }
+
+  .cell-select {
+    padding: 4px 8px; border: 1px solid transparent; border-radius: 4px;
+    font-size: 13px; font-family: inherit; background: transparent;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .cell-select:hover { border-color: var(--border); }
+  .cell-select:focus { outline: none; border-color: var(--accent); background: white; }
+
+  /* ===== Trait Tags ===== */
+  .traits-cell { display: flex; flex-wrap: wrap; gap: 5px; align-items: flex-start; }
+  .trait-tag {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 6px 2px 10px; border-radius: 4px;
+    font-size: 12px; background: var(--tag-bg); color: var(--text);
+    white-space: nowrap; line-height: 1.6;
+  }
+  .trait-tag .tag-close {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; border-radius: 50%;
+    border: none; background: transparent; color: var(--text-secondary);
+    cursor: pointer; font-size: 13px; line-height: 1; padding: 0;
+    transition: all 0.15s;
+  }
+  .trait-tag .tag-close:hover { background: var(--accent-light); color: var(--accent); }
+  .add-trait-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 4px;
+    border: 1px dashed var(--border); background: transparent;
+    color: var(--text-secondary); cursor: pointer; font-size: 16px;
+    transition: all 0.15s; flex-shrink: 0;
+  }
+  .add-trait-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+
+  /* ===== Tag Picker ===== */
+  .tag-picker-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 999; }
+  .tag-picker-overlay.show { display: block; }
+  .tag-picker {
+    position: fixed; z-index: 1000; background: var(--card);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow-lg); padding: 14px; width: 400px;
+    max-height: 420px; display: flex; flex-direction: column;
+  }
+  .tag-picker h4 { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; font-weight: 500; }
+  .tag-picker-body { flex: 1; overflow-y: auto; margin-bottom: 10px; }
+  .tag-picker-group { margin-bottom: 10px; }
+  .tag-picker-group-title {
+    font-size: 11px; color: var(--text-secondary); margin-bottom: 6px;
+    font-weight: 500; letter-spacing: 0.5px;
+  }
+  .tag-picker-items { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag-option {
+    padding: 4px 12px; border-radius: 4px; font-size: 12px;
+    background: var(--tag-bg); border: 1px solid transparent;
+    cursor: pointer; transition: all 0.15s; font-family: inherit;
+  }
+  .tag-option:hover { border-color: var(--accent); }
+  .tag-option.active { background: var(--tag-active-bg); border-color: var(--tag-active); color: var(--tag-active); font-weight: 500; }
+  .tag-picker-custom { display: flex; gap: 6px; margin-bottom: 10px; }
+  .tag-picker-custom input {
+    flex: 1; padding: 5px 10px; border: 1px solid var(--border);
+    border-radius: 4px; font-size: 12px; font-family: inherit;
+  }
+  .tag-picker-custom input:focus { outline: none; border-color: var(--accent); }
+  .tag-picker-custom button {
+    padding: 5px 12px; border: none; border-radius: 4px;
+    background: var(--tag-bg); color: var(--text); font-size: 12px;
+    cursor: pointer; font-family: inherit; border: 1px solid var(--border);
+  }
+  .tag-picker-custom button:hover { border-color: var(--accent); }
+  .tag-picker-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 10px; border-top: 1px solid var(--border);
+  }
+  .tag-picker-footer .selected-count { font-size: 12px; color: var(--text-secondary); }
+  .tag-picker-footer .btn-confirm {
+    padding: 6px 24px; background: var(--accent); color: white;
+    border: none; border-radius: 6px; font-size: 13px; font-weight: 500;
+    cursor: pointer; font-family: inherit; transition: all 0.15s;
+  }
+  .tag-picker-footer .btn-confirm:hover { background: var(--accent-hover); }
+
+  /* ===== Generate Button ===== */
+  .gen-btn {
+    padding: 6px 14px; background: var(--accent); color: white;
+    border: none; border-radius: 6px; font-size: 12px; font-weight: 500;
+    cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap;
+  }
+  .gen-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
+  .gen-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .gen-btn.loading { position: relative; color: transparent; min-width: 90px; }
+  .gen-btn.loading::after {
+    content: ''; position: absolute; width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3); border-top-color: white;
+    border-radius: 50%; animation: spin 0.6s linear infinite;
+    top: 50%; left: 50%; margin: -7px 0 0 -7px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== Result ===== */
+  .result-text {
+    font-size: 13px; line-height: 1.7; color: var(--text);
+    white-space: pre-wrap; max-height: 200px; overflow-y: auto;
+  }
+  .result-text:empty::before {
+    content: '点击左侧按钮生成评语'; color: #c0b8ad; font-style: italic;
+  }
+  .result-actions { display: flex; gap: 6px; margin-top: 6px; }
+  .result-actions button {
+    padding: 3px 8px; font-size: 11px; border: 1px solid var(--border);
+    border-radius: 4px; background: white; cursor: pointer;
+    font-family: inherit; color: var(--text-secondary); transition: all 0.15s;
+  }
+  .result-actions button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .row-check { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+
+  /* ===== Toast ===== */
+  .toast {
+    position: fixed; bottom: 32px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    padding: 10px 24px; background: var(--text); color: white;
+    border-radius: 8px; font-size: 13px; z-index: 2000;
+    opacity: 0; transition: all 0.3s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .empty-row td { text-align: center; padding: 40px; color: var(--text-secondary); }
+
+  @media (max-width: 768px) {
+    .header { padding: 12px 14px; }
+    .toolbar { padding: 8px 14px; }
+    .table-wrap { padding: 0 8px 16px; }
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: #d0c9c0; border-radius: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ===== Print Preview Modal ===== */
+  .print-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.45); z-index: 4000;
+    justify-content: center; align-items: flex-start;
+    overflow-y: auto; padding: 30px 20px;
+  }
+  .print-overlay.show { display: flex; }
+  .print-modal {
+    background: var(--card); border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    width: 100%; max-width: 920px; position: relative;
+  }
+  .print-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 24px; border-bottom: 1px solid var(--border);
+  }
+  .print-modal-header h3 { font-size: 16px; font-weight: 700; }
+  .print-modal-close {
+    width: 32px; height: 32px; border-radius: 6px; border: none;
+    background: transparent; font-size: 20px; cursor: pointer;
+    color: var(--text-secondary); transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .print-modal-close:hover { background: var(--bg); color: var(--text); }
+  .print-settings {
+    padding: 16px 24px; border-bottom: 1px solid var(--border);
+    display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end;
+  }
+  .print-field { display: flex; flex-direction: column; gap: 5px; }
+  .print-field label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+  .print-field input, .print-field select {
+    padding: 7px 12px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; font-family: inherit; background: white;
+  }
+  .print-field input:focus, .print-field select:focus { outline: none; border-color: var(--accent); }
+  .print-field input { width: 180px; }
+  .print-actions { margin-left: auto; display: flex; gap: 8px; align-items: flex-end; }
+  .btn-act {
+    padding: 8px 20px; border: none; border-radius: 6px;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    font-family: inherit; transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-act-blue { background: #3a7bd5; color: white; }
+  .btn-act-blue:hover { background: #2d6bc4; }
+  .btn-act-green { background: var(--success); color: white; }
+  .btn-act-green:hover { background: #24724a; }
+  .print-preview-area { padding: 24px; background: #e8e5e0; max-height: 58vh; overflow-y: auto; }
+
+  .print-page {
+    background: white; width: 794px; height: 1123px;
+    margin: 0 auto 20px; padding: 45px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+    display: grid; gap: 0; align-content: stretch;
+  }
+  .print-card {
+    border: 1px solid #444; padding: 12px 14px;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-sizing: border-box; margin: -0.5px;
+  }
+  .print-card-name {
+    font-weight: 700; margin-bottom: 6px;
+    padding-bottom: 5px; border-bottom: 1px solid #ddd; flex-shrink: 0;
+  }
+  .print-card-text { flex: 1; word-break: break-all; overflow: hidden; }
+  .print-card-footer {
+    color: #888; text-align: right; margin-top: 6px;
+    padding-top: 5px; border-top: 1px solid #eee; font-style: italic; flex-shrink: 0;
+  }
+  .print-modal-footer {
+    padding: 14px 24px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--text-secondary); text-align: center;
+  }
+
+  @media print {
+    body > * { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">评</div>
+  <span class="header-title">智评助手</span>
+  <span class="header-sub">AI学生评语生成器</span>
+</div>
+
+<div class="toolbar">
+  <button class="btn btn-primary" onclick="addStudent()">＋ 添加学生</button>
+  <button class="btn" onclick="addBatchStudents()">批量添加</button>
+  <div class="divider"></div>
+  <button class="btn btn-primary" onclick="generateAll()">✦ 一键全部生成</button>
+  <button class="btn" onclick="generateSelected()">生成选中</button>
+  <div class="divider"></div>
+  <button class="btn btn-export" onclick="exportExcel()">⬇ 导出 Excel</button>
+  <button class="btn btn-export" onclick="exportCSV()">⬇ 导出 CSV</button>
+  <button class="btn" style="color:#3a7bd5;border-color:#3a7bd5;" onclick="openPrintPreview()">🖨 打印预览</button>
+  <div class="divider"></div>
+  <button class="btn btn-danger" onclick="deleteSelected()">删除选中</button>
+  <span class="spacer"></span>
+  <span class="student-count" id="studentCount">共 0 名学生</span>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="c-check"><input type="checkbox" class="row-check" id="checkAll" onchange="toggleCheckAll()"></th>
+        <th style="width:36px;text-align:center">#</th>
+        <th style="width:100px">学生姓名</th>
+        <th style="width:70px">性别</th>
+        <th style="width:80px">学段</th>
+        <th style="width:90px">成绩/表现</th>
+        <th style="min-width:280px">学生特点</th>
+        <th style="width:120px">评语风格</th>
+        <th style="width:100px">生成评语</th>
+        <th style="min-width:300px">AI 最终评语</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<div class="tag-picker-overlay" id="tagPickerOverlay"></div>
+<div class="tag-picker" id="tagPicker" style="display:none;">
+  <h4>选择学生特点（可多选）</h4>
+  <div class="tag-picker-body" id="tagPickerContent"></div>
+  <div class="tag-picker-custom">
+    <input type="text" id="customTagInput" placeholder="自定义特点…" onkeydown="if(event.key==='Enter')addCustomTag()">
+    <button onclick="addCustomTag()">添加</button>
+  </div>
+  <div class="tag-picker-footer">
+    <span class="selected-count" id="pickerCount">已选 0 个</span>
+    <button class="btn-confirm" onclick="confirmTagPicker()">确认</button>
+  </div>
+</div>
+
+<div class="print-overlay" id="printOverlay">
+  <div class="print-modal">
+    <div class="print-modal-header">
+      <h3>🖨 评语卡片打印预览</h3>
+      <button class="print-modal-close" onclick="closePrintPreview()">×</button>
+    </div>
+    <div class="print-settings">
+      <div class="print-field">
+        <label>✏️ 底部落款</label>
+        <input type="text" id="printFooter" value="欣赏你的班主任" placeholder="例如：欣赏你的XX老师" oninput="refreshPrintPreview()">
+      </div>
+      <div class="print-field">
+        <label>📐 每页列数</label>
+        <select id="printCols" onchange="refreshPrintPreview()">
+          <option value="2" selected>2 列</option>
+          <option value="3">3 列</option>
+        </select>
+      </div>
+      <div class="print-field">
+        <label>📏 每页行数</label>
+        <select id="printRows" onchange="refreshPrintPreview()">
+          <option value="2">2 行</option>
+          <option value="3" selected>3 行</option>
+          <option value="4">4 行</option>
+        </select>
+      </div>
+      <div class="print-actions">
+        <button class="btn" onclick="closePrintPreview()">关闭</button>
+        <button class="btn-act btn-act-green" onclick="doPrint()">🖨 打印</button>
+        <button class="btn-act btn-act-blue" onclick="doSavePDF()">📄 导出 PDF</button>
+      </div>
+    </div>
+    <div class="print-preview-area">
+      <div id="printContainer"></div>
+    </div>
+    <div class="print-modal-footer" id="printFooterInfo">共 0 名学生，0 页</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const TRAIT_GROUPS = {
+  '学习习惯': ['上课积极','主动学习','作业认真','字迹工整','思维敏捷','专注力极佳','逻辑思维强','笔记条理清晰','举一反三','善于提问','得力班干'],
+  '性格品质': ['阳光开朗','文静内秀','活泼好动','乐于助人','尊师重道','正义感强','总是微笑','懂得感恩','环保意识强','不斤斤计较','人缘好'],
+  '能力特长': ['擅长演讲','多才多艺','运动健将','阅读面广','课堂活跃','发言积极','团队合作好','整理收纳小能手','沟通能力强','领导力强'],
+  '待提升方向': ['容易分心','基础薄弱','性格内向','爱发呆','进步明显','热爱劳动']
+};
+const STYLES  = [
+  { value: 'warm',   label: '温暖鼓励风' },
+  { value: 'strict', label: '严谨客观风' },
+  { value: 'humor',  label: '幽默风趣风' },
+  { value: 'poetic', label: '诗意文采风' },
+];
+const STAGES  = ['幼儿园','小学','初中','高中'];
+const PERFS   = ['优秀','良好','中等','偏下','较差'];
+const GENDERS = ['女生','男生'];
+
+let students = [];
+let currentPickerRow = null;
+let pickerTraits = [];
+
+// ===== Init =====
+function init() {
+  addStudentData('小明', '男生', '初中', '中等', ['阳光开朗','乐于助人','活泼好动'], 'warm');
+  addStudentData('小红', '女生', '初中', '优秀', ['文静内秀','作业认真','思维敏捷','字迹工整'], 'warm');
+  addStudentData('小刚', '男生', '初中', '偏下', ['课堂活跃','运动健将','容易分心','正义感强'], 'humor');
+  renderTable();
+}
+
+// ===== CRUD =====
+function addStudentData(name='', gender='女生', stage='初中', perf='中等', traits=[], style='warm') {
+  students.push({ id: Date.now()+Math.random(), name, gender, stage, perf, traits:[...traits], style, result:'', checked:false, loading:false });
+}
+function addStudent() {
+  addStudentData(); renderTable();
+  setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 50);
+}
+function addBatchStudents() {
+  const input = prompt('请输入学生姓名，用逗号或换行分隔：');
+  if (!input) return;
+  const names = input.split(/[,，\n\r]+/).map(s=>s.trim()).filter(Boolean);
+  names.forEach(n => addStudentData(n));
+  renderTable();
+  showToast(`已添加 ${names.length} 名学生`);
+}
+function deleteSelected() {
+  const c = students.filter(s=>s.checked).length;
+  if (!c) return showToast('请先勾选要删除的学生');
+  if (!confirm(`确定删除 ${c} 名学生？`)) return;
+  students = students.filter(s=>!s.checked);
+  document.getElementById('checkAll').checked = false;
+  renderTable();
+  showToast(`已删除 ${c} 名学生`);
+}
+function updateField(idx, field, val) { students[idx][field] = val; }
+function toggleCheckAll() {
+  const checked = document.getElementById('checkAll').checked;
+  students.forEach(s => s.checked = checked);
+  renderTable();
+}
+
+// ===== Render =====
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  document.getElementById('studentCount').textContent = `共 ${students.length} 名学生`;
+  if (!students.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="10">暂无学生，点击上方「添加学生」开始 ✨</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = students.map((s, i) => {
+    const traitsHtml = s.traits.map((t, ti) =>
+      `<span class="trait-tag">${esc(t)}<button class="tag-close" onclick="removeTrait(${i},${ti})" title="删除">×</button></span>`
+    ).join('') + `<button class="add-trait-btn" onclick="openTagPicker(${i},this)" title="添加特点">+</button>`;
+
+    const resultHtml = s.result
+      ? `<div class="result-text">${esc(s.result)}</div><div class="result-actions"><button onclick="copyResult(${i})">复制</button><button onclick="regenerate(${i})">重新生成</button></div>`
+      : `<div class="result-text"></div>`;
+
+    return `<tr class="${s.checked?'selected':''}">
+      <td class="c-check"><input type="checkbox" class="row-check" ${s.checked?'checked':''} onchange="students[${i}].checked=this.checked;renderTable()"></td>
+      <td class="c-idx">${i+1}</td>
+      <td><input class="cell-input" value="${esc(s.name)}" placeholder="姓名" onchange="updateField(${i},'name',this.value)"></td>
+      <td><select class="cell-select" onchange="updateField(${i},'gender',this.value)">${GENDERS.map(g=>`<option ${s.gender===g?'selected':''}>${g}</option>`).join('')}</select></td>
+      <td><select class="cell-select" onchange="updateField(${i},'stage',this.value)">${STAGES.map(g=>`<option ${s.stage===g?'selected':''}>${g}</option>`).join('')}</select></td>
+      <td><select class="cell-select" onchange="updateField(${i},'perf',this.value)">${PERFS.map(g=>`<option ${s.perf===g?'selected':''}>${g}</option>`).join('')}</select></td>
+      <td><div class="traits-cell">${traitsHtml}</div></td>
+      <td><select class="cell-select" onchange="updateField(${i},'style',this.value)">${STYLES.map(st=>`<option value="${st.value}" ${s.style===st.value?'selected':''}>${st.label}</option>`).join('')}</select></td>
+      <td><button class="gen-btn ${s.loading?'loading':''}" onclick="generateOne(${i})" ${s.loading?'disabled':''}>${s.loading?'':'✦ 生成评语'}</button></td>
+      <td>${resultHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ===== Tag Picker =====
+function openTagPicker(rowIdx, btn) {
+  currentPickerRow = rowIdx;
+  pickerTraits = [...students[rowIdx].traits];
+  const picker = document.getElementById('tagPicker');
+  const overlay = document.getElementById('tagPickerOverlay');
+  const rect = btn.getBoundingClientRect();
+  renderPickerContent();
+  document.getElementById('customTagInput').value = '';
+  picker.style.display = 'flex';
+  overlay.classList.add('show');
+  let top = rect.bottom + 4, left = rect.left - 160;
+  if (left + 400 > window.innerWidth) left = window.innerWidth - 420;
+  if (left < 8) left = 8;
+  if (top + 420 > window.innerHeight) top = Math.max(8, rect.top - 430);
+  picker.style.top = top + 'px';
+  picker.style.left = left + 'px';
+}
+function renderPickerContent() {
+  let html = '';
+  for (const [group, tags] of Object.entries(TRAIT_GROUPS)) {
+    html += `<div class="tag-picker-group"><div class="tag-picker-group-title">${group}</div><div class="tag-picker-items">${tags.map(t => {
+      const active = pickerTraits.includes(t) ? 'active' : '';
+      return `<button class="tag-option ${active}" onclick="togglePickerTrait('${t}',this)">${t}</button>`;
+    }).join('')}</div></div>`;
+  }
+  document.getElementById('tagPickerContent').innerHTML = html;
+  document.getElementById('pickerCount').textContent = `已选 ${pickerTraits.length} 个`;
+}
+function togglePickerTrait(trait, el) {
+  const idx = pickerTraits.indexOf(trait);
+  if (idx >= 0) { pickerTraits.splice(idx, 1); el.classList.remove('active'); }
+  else { pickerTraits.push(trait); el.classList.add('active'); }
+  document.getElementById('pickerCount').textContent = `已选 ${pickerTraits.length} 个`;
+}
+function addCustomTag() {
+  const input = document.getElementById('customTagInput');
+  const val = input.value.trim();
+  if (!val) return;
+  if (!pickerTraits.includes(val)) pickerTraits.push(val);
+  input.value = '';
+  renderPickerContent();
+}
+function confirmTagPicker() {
+  if (currentPickerRow !== null) students[currentPickerRow].traits = [...pickerTraits];
+  closeTagPicker();
+  renderTable();
+}
+function closeTagPicker() {
+  document.getElementById('tagPicker').style.display = 'none';
+  document.getElementById('tagPickerOverlay').classList.remove('show');
+  currentPickerRow = null;
+  pickerTraits = [];
+}
+document.getElementById('tagPickerOverlay').addEventListener('click', closeTagPicker);
+function removeTrait(rowIdx, traitIdx) { students[rowIdx].traits.splice(traitIdx, 1); renderTable(); }
+
+// ===== AI Generation (安全重构版：直接请求本地后端) =====
+function buildPrompt(s) {
+  const sm = { warm:'温暖鼓励、真诚肯定，让学生感受到关怀', strict:'严谨客观、实事求是，重点描述真实表现', humor:'幽默风趣、生动活泼，用轻松语言拉近距离', poetic:'诗意文采、优美典雅，用文采描绘学生特质' };
+  return `# Role\n你是一位观察细致、实事求是且极具教育情怀的资深班主任。\n\n# Input Data\n- 姓名：${s.name}\n- 性别：${s.gender}\n- 所在学段：${s.stage}\n- 综合成绩/表现：${s.perf}\n- 个人特质标签：${s.traits.join('、')}\n- 期望评语风格：${sm[s.style]||sm.warm}\n\n# 约束\n1. 严禁无中生有：不要编造学生没有提供的具体经历。\n2. 全面如实：无论成绩如何，严禁贬低或否定。对"待提升"方向用建设性语气表达期望。\n3. 字数控制在 120-180 字。\n4. 使用"${s.name}同学"作为开头称呼。\n5. 不要使用"老师相信你"等居高临下表述，用平等语气。\n6. 每个学生的评语要有差异化，避免千篇一律。\n\n# Output\n直接输出评语正文，不加任何标题、引号或额外说明。`;
+}
+
+// 核心改动：不再从 localStorage 或外部代理找 Key，直接请求本地 server.js 的 /api/chat
+async function callAPI(prompt) {
+  const resp = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.85,
+      max_tokens: 400
+    })
+  });
+
+  if (!resp.ok) {
+    const e = await resp.json().catch(()=>({}));
+    throw new Error(e.error || e.message || `接口请求失败: ${resp.status}`);
+  }
+  const data = await resp.json();
+  return data.choices?.[0]?.message?.content?.trim() || '生成失败';
+}
+
+async function generateOne(idx) {
+  const s = students[idx];
+  if (!s.name) return showToast('请先输入学生姓名');
+  if (!s.traits.length) return showToast('请至少选择一个学生特点');
+  s.loading = true; renderTable();
+  try { s.result = await callAPI(buildPrompt(s)); }
+  catch(e) { showToast('生成失败：'+e.message); }
+  finally { s.loading = false; renderTable(); }
+}
+function regenerate(idx) { generateOne(idx); }
+
+async function generateAll() {
+  const list = students.filter(s=>s.name&&s.traits.length&&!s.loading);
+  if (!list.length) return showToast('没有可生成的学生（需要姓名和特点）');
+  showToast(`开始生成 ${list.length} 条评语…`);
+  for (const s of list) { await generateOne(students.indexOf(s)); await sleep(300); }
+  showToast('全部生成完成！');
+}
+async function generateSelected() {
+  const list = students.filter(s=>s.checked&&s.name&&s.traits.length&&!s.loading);
+  if (!list.length) return showToast('请先勾选有姓名和特点的学生');
+  showToast(`开始生成 ${list.length} 条评语…`);
+  for (const s of list) { await generateOne(students.indexOf(s)); await sleep(300); }
+  showToast('选中学生评语生成完成！');
+}
+
+// ===== Export =====
+function getExportData() {
+  return students.map((s,i) => ({
+    '序号': i+1, '学生姓名': s.name, '性别': s.gender, '学段': s.stage,
+    '成绩/表现': s.perf, '学生特点': s.traits.join('、'),
+    '评语风格': (STYLES.find(st=>st.value===s.style)||STYLES[0]).label, 'AI评语': s.result
+  }));
+}
+function exportExcel() {
+  if (!students.length) return showToast('暂无数据可导出');
+  const ws = XLSX.utils.json_to_sheet(getExportData());
+  ws['!cols'] = [{wch:6},{wch:10},{wch:6},{wch:8},{wch:10},{wch:30},{wch:12},{wch:60}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '学生评语');
+  XLSX.writeFile(wb, `学生评语_${fmtDate()}.xlsx`);
+  showToast('Excel 文件已导出');
+}
+function exportCSV() {
+  if (!students.length) return showToast('暂无数据可导出');
+  const ws = XLSX.utils.json_to_sheet(getExportData());
+  const csv = XLSX.utils.sheet_to_csv(ws);
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `学生评语_${fmtDate()}.csv`; a.click();
+  showToast('CSV 文件已导出');
+}
+
+// ===== Utils =====
+function copyResult(idx) {
+  if (!students[idx].result) return;
+  navigator.clipboard.writeText(students[idx].result).then(()=>showToast('已复制到剪贴板'));
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showToast(msg) {
+  const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(()=>t.classList.remove('show'), 2500);
+}
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+function fmtDate() { const d=new Date(); return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`; }
+
+// ===== Print =====
+function openPrintPreview() {
+  const withResult = students.filter(s => s.name && s.result);
+  if (!withResult.length) return showToast('暂无已生成评语的学生，请先生成评语');
+  document.getElementById('printOverlay').classList.add('show');
+  refreshPrintPreview();
+}
+function closePrintPreview() { document.getElementById('printOverlay').classList.remove('show'); }
+
+function cleanResultText(name, text) {
+  const prefixes = [name+'同学，',name+'同学,',name+'同学：',name+'同学:',name+'，',name+',',name+'：',name+':'];
+  for (const p of prefixes) { if (text.startsWith(p)) { text = text.slice(p.length).trimStart(); break; } }
+  return text;
+}
+
+function refreshPrintPreview() {
+  const cols = parseInt(document.getElementById('printCols').value);
+  const rows = parseInt(document.getElementById('printRows').value);
+  const footer = document.getElementById('printFooter').value.trim();
+  const perPage = cols * rows;
+  const printStudents = students.filter(s => s.name && s.result);
+  if (!printStudents.length) return;
+
+  const container = document.getElementById('printContainer');
+  container.innerHTML = '';
+
+  const pagePad = 45, pageH = 1123;
+  const usableW = 794 - pagePad * 2;
+  const usableH = pageH - pagePad * 2;
+  const cellW = Math.floor(usableW / cols);
+  const cellH = Math.floor(usableH / rows);
+  const overhead = footer ? 90 : 65;
+  const textAreaH = cellH - overhead;
+  const totalPages = Math.ceil(printStudents.length / perPage);
+
+  for (let p = 0; p < totalPages; p++) {
+    const pageDiv = document.createElement('div');
+    pageDiv.className = 'print-page';
+    pageDiv.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    pageDiv.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+    for (let ci = 0; ci < perPage; ci++) {
+      const si = p * perPage + ci;
+      const card = document.createElement('div');
+      card.className = 'print-card';
+      if (si < printStudents.length) {
+        const s = printStudents[si];
+        const text = cleanResultText(s.name, s.result);
+        const fontSize = calcFontSize(text, cellW - 30, textAreaH);
+        card.innerHTML = `
+          <div class="print-card-name" style="font-size:${Math.min(15, fontSize+2)}px">${esc(s.name)}</div>
+          <div class="print-card-text" style="font-size:${fontSize}px;line-height:${fontSize<11?1.6:1.75}">${esc(text)}</div>
+          ${footer ? `<div class="print-card-footer" style="font-size:${Math.max(9,fontSize-2)}px">${esc(footer)}</div>` : ''}`;
+      } else {
+        card.style.border = '1px dashed #ccc';
+        card.style.opacity = '0.3';
+      }
+      pageDiv.appendChild(card);
+    }
+    container.appendChild(pageDiv);
+  }
+  document.getElementById('printFooterInfo').textContent = `共 ${printStudents.length} 名学生，${totalPages} 页`;
+}
+
+function calcFontSize(text, maxW, maxH) {
+  let best = 13;
+  for (let fs = 13; fs >= 9; fs -= 0.5) {
+    const cpl = Math.floor(maxW / fs);
+    const lines = Math.ceil(text.length / cpl);
+    const lh = fs < 11 ? 1.6 : 1.75;
+    if (lines * fs * lh <= maxH) { best = fs; break; }
+    best = fs;
+  }
+  return best;
+}
+
+function getSharedPrintCSS() {
+  return `
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: 'Noto Sans SC', -apple-system, 'Microsoft YaHei', sans-serif; }
+    .print-page {
+      background:white; width:794px; height:1123px;
+      padding:45px; display:grid; gap:0; align-content:stretch;
+      page-break-after:always;
+    }
+    .print-page:last-child { page-break-after:auto; }
+    .print-card {
+      border:1px solid #444; padding:12px 14px;
+      display:flex; flex-direction:column; overflow:hidden;
+      box-sizing:border-box; margin:-0.5px;
+    }
+    .print-card-name {
+      font-weight:700; margin-bottom:6px;
+      padding-bottom:5px; border-bottom:1px solid #ddd; flex-shrink:0;
+    }
+    .print-card-text { flex:1; word-break:break-all; overflow:hidden; }
+    .print-card-footer {
+      color:#888; text-align:right; margin-top:6px;
+      padding-top:5px; border-top:1px solid #eee; font-style:italic; flex-shrink:0;
+    }
+    @page { size:A4; margin:0; }
+  `;
+}
+
+function buildPrintHTML() {
+  const cols = parseInt(document.getElementById('printCols').value);
+  const rows = parseInt(document.getElementById('printRows').value);
+  const footer = document.getElementById('printFooter').value.trim();
+  const perPage = cols * rows;
+  const printStudents = students.filter(s => s.name && s.result);
+  const pagePad = 45;
+  const usableW = 794 - pagePad*2, usableH = 1123 - pagePad*2;
+  const cellW = Math.floor(usableW/cols), cellH = Math.floor(usableH/rows);
+  const overhead = footer ? 90 : 65;
+  const textAreaH = cellH - overhead;
+  const totalPages = Math.ceil(printStudents.length / perPage);
+  let html = '';
+  for (let p = 0; p < totalPages; p++) {
+    html += `<div class="print-page" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr);">`;
+    for (let ci = 0; ci < perPage; ci++) {
+      const si = p * perPage + ci;
+      if (si < printStudents.length) {
+        const s = printStudents[si];
+        const text = cleanResultText(s.name, s.result);
+        const fs = calcFontSize(text, cellW-30, textAreaH);
+        html += `<div class="print-card">
+          <div class="print-card-name" style="font-size:${Math.min(15,fs+2)}px">${esc(s.name)}</div>
+          <div class="print-card-text" style="font-size:${fs}px;line-height:${fs<11?1.6:1.75}">${esc(text)}</div>
+          ${footer ? `<div class="print-card-footer" style="font-size:${Math.max(9,fs-2)}px">${esc(footer)}</div>` : ''}
+        </div>`;
+      } else {
+        html += `<div class="print-card" style="border:1px dashed #ccc;opacity:0.3"></div>`;
+      }
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+function doPrint() {
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>打印评语</title><style>${getSharedPrintCSS()}</style></head><body>${buildPrintHTML()}</body></html>`);
+  w.document.close();
+  setTimeout(() => w.print(), 300);
+}
+
+function doSavePDF() {
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>学生评语_${fmtDate()}</title>
+    <style>${getSharedPrintCSS()}
+      .pdf-tip { padding:12px 20px; background:#fff3cd; color:#856404; font-size:14px; text-align:center; border-bottom:2px solid #ffc107; font-family:'Noto Sans SC',sans-serif; }
+      @media print { .pdf-tip { display:none; } }
+    </style></head><body>
+    <div class="pdf-tip">请在打印对话框中，将「打印机」选择为「Microsoft Print to PDF」或「另存为 PDF」，然后点击打印即可保存</div>
+    ${buildPrintHTML()}</body></html>`);
+  w.document.close();
+  setTimeout(() => w.print(), 300);
+}
+
+init();
+</script>
+</body>
+</html>

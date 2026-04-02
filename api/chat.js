@@ -1,6 +1,8 @@
-// api/chat.js
-export default async function handler(req, res) {
-    if (req.method !== 'POST') return res.status(405).send('只接受 POST 请求');
+module.exports = async (req, res) => {
+    // 只允许 POST 请求
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+    }
 
     try {
         const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -14,6 +16,6 @@ export default async function handler(req, res) {
         const data = await response.json();
         res.status(200).json(data);
     } catch (error) {
-        res.status(500).json({ error: '后端转发失败' });
+        res.status(500).json({ error: 'AI 接口连接失败' });
     }
-}
+};

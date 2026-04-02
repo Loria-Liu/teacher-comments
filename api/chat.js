@@ -1,14 +1,6 @@
 module.exports = async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-
     if (req.method !== 'POST') {
-        return res.status(405).json({ error: '请使用 POST 请求' });
+        return res.status(200).send('AI助手后端已就绪');
     }
 
     try {
@@ -23,6 +15,6 @@ module.exports = async (req, res) => {
         const data = await response.json();
         res.status(200).json(data);
     } catch (error) {
-        res.status(500).json({ error: 'AI 接口请求失败' });
+        res.status(500).json({ error: '请求失败' });
     }
 };
